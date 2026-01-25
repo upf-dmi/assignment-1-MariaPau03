@@ -50,7 +50,7 @@ library(janitor)
 library(htmltools)
 
 # 1) Read data
-df <- read_excel("1-s2.0-S0092867420306279-mmc1.xlsx", sheet = 2)
+df <- read_excel("../1-s2.0-S0092867420306279-mmc1.xlsx", sheet = 2)
 df <- clean_names(df)
 
 # 2) Build the main Table-1 group column for ALL rows first (critical)
@@ -314,7 +314,7 @@ library(janitor)
 # Pivot data to "Long" format so all variables can be plotted at once
 #Pivot means changing the shape (layout) of a dataset, wuthout changing the values. Only reorganizewhere the values sit in the table. 
 
-df <- read_excel("1-s2.0-S0092867420306279-mmc1.xlsx", sheet = 2)
+df <- read_excel("../1-s2.0-S0092867420306279-mmc1.xlsx", sheet = 2)
 df <- clean_names(df) #to have clean_names available, use library(janitor)!!
 
 df_new_variables <- df %>%
@@ -463,8 +463,10 @@ Reproduce Supplementary Figure 1 after outlier handling and discuss how and why 
 library(tidyverse)
 library(ggstatsplot)
 library(patchwork)
+library(readxl)
+library(janitor)
 
-mydata<- read_excel("1-s2.0-S0092867420306279-mmc1.xlsx", sheet = 2)
+mydata<- read_excel("../1-s2.0-S0092867420306279-mmc1.xlsx", sheet = 2)
 mydata <- clean_names(mydata)
 
 # Define the variables in the EXACT order you want them to appear in the grid
@@ -575,9 +577,9 @@ So all in all, the 30 identified outliers were responsible for that massive vert
 Create a heatmap of the biomarker data. Include group and gender as annotation variables.
 
 ```{r}
-#In the heatmap, each row typically represents a single patient (sample) and each column represents a biomarker (wbc, alt, glucose, ...) The intensity of the color indicates the elvel of the biomarker!
-#As biomarkers have very different units, units must be scaled so all of them are compared ona relative basis. 
-#by grouping by group, allows to see if "severe" patients hve a distinct color pattern compared to the "healthy" controls
+
+#As biomarkers have very different units, units must be scaled so all of them are compared ona relative basis. This is done in the pheatmap function to do the heatmap
+#by grouping by group, allows to see if "severe" patients have a distinct color pattern compared to the "healthy" controls
 #grouping by gender, helps identify if biomarker patterns are influenced by biological sex. 
 
 #install.packages("pheatmap")
@@ -585,56 +587,79 @@ library(pheatmap)
 library(tidyverse)
 library(ggplot2)
 
-mydata <- mydata %>%
-  # Create a group column inside mydata dataframe
+# 1. Take cleaned "mydata_ordered" and pivot it back to wide format
+mydata_long <- mydata %>%
+  select(patient_id_a, group = group_d, sex = sex_g, all_of(ordered_vars)) %>%
+  mutate(across(all_of(ordered_vars), ~as.numeric(as.character(.)))) %>%
+  pivot_longer(cols = all_of(ordered_vars),
+               names_to = "measurement",
+               values_to = "value") %>%
+  drop_na(value)
+
+heatmap_ready <- mydata_long %>%
+  drop_na(value) %>%
+  pivot_wider(names_from = measurement, values_from = value) %>%
+  drop_na() # Heatmaps cannot handle NA values easily; pheatmap will fail
+
+heatmap_ready <- heatmap_ready %>%
   mutate(
     group = case_when(
-      group_d %in% c(0, 1) ~ "Non-COVID-19",
-      group_d == 2 ~ "Non-severe",
-      group_d == 3 ~ "Severe",
+      group %in% c(0, 1) ~ "Non-COVID-19",
+      group == 2 ~ "Non-severe",
+      group == 3 ~ "Severe",
       TRUE ~ NA_character_
     ),
-    group = factor(group, levels = c("Non-COVID-19", "Non-severe", "Severe"))
-  ) %>%
-  filter(!is.na(group))
+    group = factor(group, levels = c("Non-COVID-19", "Non-severe", "Severe")),
+    
+    sex = case_when(
+      sex == 0 ~ "Female",
+      sex == 1 ~ "Male",
+      TRUE ~ as.character(sex)
+    )
+  )
 
+# 2. Prepare Annotation
+annotation_col <- heatmap_ready %>%
+  select(group, sex) %>%
+  as.data.frame()
 
-view(mydata)
-  
-#PREPARE THE NUMERIC MATRIX:
-heatmap_data <- mydata %>% 
-  #select ID, group, sex and ordered biomarkers
-  select(patient_id_a, group, sex_g, all_of(ordered_vars)) %>%
-  #Remove rows with missing values 
-  drop_na() %>%
-  #Turn patient_id into row names
-  column_to_rownames("patient_id_a")
+# 3. Create the Matrix
+matrix_to_plot <- heatmap_ready %>%
+  select(all_of(ordered_vars)) %>%
+  as.matrix()
 
-#CREATE ANNOTATION DATAFRAME:
-annotation_col <- heatmap_data %>% 
-  select(group, sex_g) %>%
-  rename(Group = group, Gender = sex_g)
-  
-#we must exclude "group" and "sex_g" from the matrix
-matrix_to_plot <- heatmap_data %>%
-  select(all_of(ordered_vars))
+# 4. Plot
+## 1. Convert everything to standard data frames immediately
+matrix_df <- as.data.frame(matrix_to_plot)
+# Make sure group and sex are in my annotation data
+# annotation_col <- heatmap_ready[rows_to_keep, ] %>% 
+#   select(group, sex) %>% 
+#   as.data.frame()
 
+## 2. Handle the NAs (Outliers)
+# Since I have 51 patients in my matrix, we need to make sure 
+# the annotation table also has exactly those 51 patients.
+# rows_to_keep <- complete.cases(matrix_df)
 
-matrix_to_plot$crp_i_mg_l_2<- as.numeric(matrix_to_plot$crp_i_mg_l)
+# matrix_to_plot_clean <- matrix_df[rows_to_keep, ]
+# annotation_col_clean <- annotation_col[rows_to_keep, , drop = FALSE]
 
-matrix_to_plot$crp_i_mg_l<- gsub("/", NA, matrix_to_plot$crp_i_mg_l)
-matrix_to_plot$crp_i_mg_l<- gsub("<1.3", NA, matrix_to_plot$crp_i_mg_l)
-matrix_to_plot <- matrix_to_plot %>% select(-crp_i_mg_l_2)
-matrix_to_plot$crp_i_mg_l<- as.numeric(matrix_to_plot$crp_i_mg_l)
-# Restore row names (Patient IDs) because the apply() function strips them
-rownames(matrix_to_plot) <- rownames(heatmap_data)
+## 3. Assign matching dummy names
+patient_names <- paste0("Patient_", 1:nrow(matrix_to_plot))
+rownames(matrix_to_plot) <- patient_names
+rownames(annotation_col) <- patient_names
 
-#?apply()
+## 4. Check the counts
+print(paste("Matrix rows (patients):", nrow(matrix_to_plot)))
+print(paste("Annotation rows:", nrow(annotation_col)))
 
+## 5. Plot
 h <- pheatmap(
-  t(matrix_to_plot),           # Transpose so biomarkers are rows and patients are columns
-  scale = "row",              # Normalizes data (Z-score) so markers are comparable
-  annotation_col = annotation_col, 
+  t(matrix_to_plot), # Biomarkers in rows
+  scale = "row",     # Z-score scaling
+  annotation_col = annotation_col,
+  show_colnames = FALSE,
+  main = "Heatmap: Clinical Biomarkers by Group and Sex"
 )
 
 h
@@ -646,7 +671,7 @@ ggsave("Heatmap.png", h, width = 14, height = 12, dpi = 300)
 
 Write a concise conclusion (1 paragraphs) summarizing the main differences observed across the three patient groups based on the twelve clinical parameters. Support your statements with evidence from your analyses. 
 
-Clinical characterization across the three patient groups reveals that severe COVID-19 is defined by systemic inflammatory and metabolic dysregulation. Glucose and CRP are the most significant differentiators, with the Severe group exhibiting markedly higher median levels, elevated glucose indicates a profound physiological stress response, while CRP serves as a critical marker associated with disease progression. Immunologically, a decreased lymphocyte count is distinguished between  the severe cohort from non-severe and non-COVID-19 patients, whereas WBC, monocyte and platelet counts remain relatively stable across groups. While liver stress markers (ALT and AST) show slight upward trends in severe cases, suggesting potential multi-organ involvement. Other parameters such as TBIL and DBIL do not show significant variation, indicating that the primary clinical signature of severity in this cohort is driven by acute inflammation and metabolic shifts rather than broad hepatic or biliary failure. 
+Clinical characterization across the three patient groups reveals that severe COVID-19 is defined by systemic inflammatory and metabolic dysregulation. Glucose and CRP are the most significant differentiators, with the Severe group exhibiting markedly higher median levels, elevated glucose indicates a profound physiological stress response, while CRP serves as a critical marker associated with disease progression. Hierarchical clustering in the biomarker heatmap shows that these inflammatory signatures (specifically the elevated CRP, ALT, and AST cluster) emerge independently of sex, as both male and female patients are distributed throughout the severe and non-severe clusters. Immunologically, a decreased lymphocyte count is distinguished between  the severe cohort from non-severe and non-COVID-19 patients, whereas WBC, monocyte and platelet counts remain relatively stable across groups. While liver stress markers (ALT and AST) show slight upward trends in severe cases, suggesting potential multi-organ involvement. Other parameters such as TBIL and DBIL do not show significant variation, indicating that the primary clinical signature of severity in this cohort is driven by acute inflammation and metabolic shifts rather than broad hepatic or biliary failure and this progression appears to follow a consistent pattern across both biological sexes in this dataset. 
 
 
 
