@@ -174,7 +174,7 @@ library(ggplot2)
 library(dplyr)
 
 
-# Sex bar plot ---------
+# Sex bar plot --------- 
 
 sex_bar_plot <- ggplot(df5, aes(x=sex, fill = sex)) + geom_bar() + labs(
     title = "Male vs Female",
@@ -227,7 +227,28 @@ admission_to_severe_histogram <- ggplot(df5, aes(x = admission_to_severe)) +
 
 admission_to_severe_histogram 
 
-# Group comparisons --------
+#Correlation plot ------
+# install.packages("corrplot")
+library(corrplot)
+#Calculate correlation matrix for numeric variables
+# use = "complete.obs" to handle any missing (NA) values
+df_corr_ready <- df_new_variables %>% mutate(crp_i_mg_l = as.numeric(as.character(crp_i_mg_l))) #sapply(df_corr_ready, class) #to see if the chracter columns have changed to numeric (becasue crp was considered characters)
+
+cor_matrix <- cor(df_corr_ready, use = "complete.obs")
+
+
+corrplot(cor_matrix,
+         method = "color",
+         type = "upper",
+         addCoef.col = "black", #shows the correlation coeff
+         tl.col = "black", #text label color
+         tl.srt = 45, #rotate labels for readibility
+         diag = FALSE, #Hide the diagonal
+         number.cex = 0.6,    # Shrinks the correlation numbers
+         tl.cex = 0.7,        # Shrinks the text labels (variable names)
+         cl.cex = 0.7)        # Shrinks the color legend scale on the right
+
+# Group comparisons -------- 
 
 #group is the COVID status!
 
@@ -291,9 +312,12 @@ ggplot(covid_df, aes(x = group, y = onset_to_admission, fill = group)) +
 
 
 ```
-Exploratory data analysis was performed to describe the demographic and clinical characteristics of the study population. Sex, age and BMI distributions were first explored using descriptive statistics and graphical representations. Age and BMI showed reasonable ranges without evident implausible values. Some clinical time variables, such as time from symptom onset to hospital admission and time from admission to severe disease, were only defined for subsets of COVID-19 patients, reflecting the study design rather than random missingness.
 
-Group comparisons suggested differences in age distributions across COVID-19 severity groups, while BMI appeared broadly similar between groups. Sex distribution varied across clinical groups, with a higher proportion of males observed among COVID-19 patients. Time from symptom onset to admission was explored only among COVID-19 patients and appeared to differ between non-severe and severe cases. Overall, no major data quality issues were identified, and the dataset was considered suitable for further analysis.
+Exploratory data analysis was performed to describe the demographic and clinical characteristics of the study population. Sex, age and BMI distributions were first explored using descriptive statistics and graphical representations. Age and BMI showed reasonable ranges without evident implausible values. A correlation analysis was conducted on clinical laboratory markers to identify redundant variables and underlying biological patterns. This analysis revealed a near-perfect positive correlation between total and direct bilirubin (r=0.98), suggesting significant data redundancy. Furthermore, moderate-to-strong positive correlations were observed between liver enzymes ALT and AST (r=0.65), while systemic inflammation (measured by CRP) showed a positive association with AST (r=0.56) and a negative association with lymphocyte counts (r=−0.30), consistent with typical COVID-19 inflammatory signatures.
+
+Some clinical time variables, such as time from symptom onset to hospital admission and time from admission to severe disease, were only defined for subsets of COVID-19 patients, reflecting the study design rather than random missingness. Group comparisons suggested differences in age distributions across COVID-19 severity groups, while BMI appeared broadly similar between groups. Sex distribution varied across clinical groups, with a higher proportion of males observed among COVID-19 patients. Time from symptom onset to admission was explored only among COVID-19 patients and appeared to differ between non-severe and severe cases.
+
+Overall, no major data quality issues were identified, though the CRP variable required type conversion to numeric for analysis, and the dataset was considered suitable for further analysis.
 
 # Exercise 2
 
