@@ -489,6 +489,8 @@ library(ggstatsplot)
 library(patchwork)
 library(readxl)
 library(janitor)
+library(ggplot2)
+library(ggpubr)
 
 mydata<- read_excel("../1-s2.0-S0092867420306279-mmc1.xlsx", sheet = 2)
 mydata <- clean_names(mydata)
@@ -541,16 +543,25 @@ mydata_ordered <- mydata %>%
     cleaned_value = ifelse(value > up | value < low, NA, value)
   ) %>% 
   ungroup()
-
+# Define the comparisons want to show (for instance every group against each other)
+my_comparisons <- list( 
+  c("Non-COVID-19", "Non-severe"), 
+  c("Non-severe", "Severe"), 
+  c("Non-COVID-19", "Severe") 
+)
 # Final Plotting
 s <- ggplot(mydata_ordered, aes(x = group, y = cleaned_value, color = group)) +
   stat_summary(fun = "mean", geom = "bar", fill = "white", linewidth = 1, width = 0.7) +
   stat_summary(fun.data = "mean_se", geom = "errorbar", width = 0.2, color = "black") + 
   geom_jitter(width = 0.2, alpha = 0.5, size = 0.8) + 
   
-  # Facet using the factor (which now follows our custom order)
-  facet_wrap(~measurement, scales = "free_y", ncol = 3) + 
-  
+  stat_compare_means(
+    comparisons = my_comparisons,
+    label = "p.signif",        # This tells R to use stars (*, **) instead of numbers
+    method = "wilcox.test",   
+    hide.ns = TRUE            # Don't show 'ns' if the difference is not significant
+  ) +
+  facet_wrap(~measurement, scales = "free_y", ncol = 3) +
   scale_color_manual(values = c(
     "Non-COVID-19" = "#4A69BD", 
     "Non-severe"   = "#F6B93B", 
@@ -584,16 +595,22 @@ view(outlier_summary)
 
 ```
 The primary difference between the original Supplementary Figure 1 and the reproduced ordered and cleaned figure is the significant improvemnt in visual clarity and normalization of the y-axis scales. 
-In the original figure, extreme outliers (such as an ALT value of around 810 or an AST value near 800) forced the y-axis to extend to very high limits. This "squashed" the bars representing the means, making it difficutl to visually istinguish differences between groups. In the cleaned figure, removeing these extreme values, allowed the y-axis to make a "zoom in", making the biological trends and differences between the non-COVID19, non-severe and severe groups much more apparent. 
+In the original figure, extreme outliers (such as an ALT value of around 810 or an AST value near 800) forced the y-axis to extend to very high limits. This "squashed" the bars representing the means, making it difficult to visually distinguish differences between groups. In the cleaned figure, removing these extreme values, allowed the y-axis to make a "zoom in", making the biological trends and differences between the non-COVID19, non-severe and severe groups much more apparent. 
 In the original figure, the dots looked more concentrated because the scale was so large. By removing the extreme points, the plot expands the middle range, and that's the reason why the dots now look more spread out. 
 
 Regarding the outlier removal process, was performed per group and per marker using the 1.5*IQR method. This ensured that higher baseline levels in the severe group were not incorrectly categorized as outliers when compared to other groups. Furthermore, a total of 30 distinct group/marker combinations had outliers removed. 
 
+Moreover, the outlier removal process directly influenced the statistical sensitivity of the comparisons between groups:
+
+- Increased Sensitivity: In the cleaned plot, markers like WBC count and CRP show more robust significance levels (appearing as *** or **). Removing extreme values reduced the within-group variance, allowing the statistical tests to more effectively detect the underlying biological differences between severe and non-severe cases.
+
+- Shift in p-values: Some comparisons that were borderline significant or dominated by noise in the original figure now show clearer p-value shifts. For example, the glucose concentration consistently shows a higher concentration in the severe group across both plots, but the cleaned version provides a more precise statistical context for this elevation.
+
+- Persistent non-significance: Despite the "zoom" effect, markers such as monocytes, platelets, and creatinine remain not significant. This confirms that the lack of difference in these markers is a biological reality rather than a result of outlier interference.
+
 The fact that the original paper kept these extreme values (original figure), suggest that they prioritized showing the full clinical range of COVID19, including extreme organ failure, rather than achieving a "normal" statistical distribution. This reproduction demonstrates that standard IQR cleaning focuses on the typical case but can make the remaining variance appear more pronounced when the axis is allowed to scale freely. 
 
-Among the groups and the features shown, we cannot see much which features change between groups. The only one that varyis in both plots (the one obtained in exercise 2.1 and the second one in 22) is the glucose concentration, which appears to be in higher concentration in the sever group.
-
-So all in all, the 30 identified outliers were responsible for that massive vertical stretching in the original. Removing them did not just clean the dots, it changed the resolution of the clinical markers. 
+The original paper likely retained extreme values to showcase the full clinical spectrum of COVID-19, including instances of extreme organ failure. However, this reproduction demonstrates that while standard IQR cleaning focuses on the typical patient case, it also makes the remaining variance appear more pronounced when the axis scales freely. Ultimately, cleaning the data did not just remove "dots", it fundamentally changed the resolution of the clinical phenotypes.
 
 
 # Exercise 3
