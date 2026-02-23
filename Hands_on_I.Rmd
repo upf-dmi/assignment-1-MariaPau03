@@ -1,37 +1,52 @@
 ---
-title: "DMI - Hands on 1"
-author: ' Maria Pau Pijoan & Leyre Roca (u269315@upf.edu)'
+title: "DMI - Hands on 1: Proteomic and Metabolomic Characterization of COVID-19 Patient Sera"
+subtitle: "Reproducible Statistical Analysis and Visualization"
+author: ' Maria Pau Pijoan Manresa (mariapau.pijoan01@estudiant.upf.edu)'
 date: 'Last update: `r format(Sys.time(), "%d %B, %Y")`'
 output:
   html_document:
+    theme: flatly
+    highlight: tango
     toc: true
-    fig_caption: true
-  word_document:
-    toc: true
-  pdf_document:
-    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: true
+    code_folding: show
+    df_print: paged
+fontsize: 12pt
 ---
 
 ```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center",
+  fig.width = 8,
+  fig.height = 5
+)
 #install.packages("knitr") #can execute R code inside the R markdown documents
 #knitr::opts_chunk$set(echo = TRUE) #como se muestra el codigo, i TRUE significa que el cdigo R se muestra en el documento final (html, PDF,word)
 #if (!require("knitr")) install.packages("knitr", repos = "http://cran.us.r-project.org")
 library(knitr)
 ```
 
-This practical focuses on data wrangling, exploratory data analysis, visualization, and critical comparison with published results using real biomedical data.
+# Abstract
 
-We will work with the publication [**Proteomic and Metabolomic Characterization of COVID-19 Patient Sera**](https://www.sciencedirect.com/science/article/pii/S0092867420306279)
+This report presents a reproducible statistical analysis of proteomic and metabolomic data derived from COVID-19 patient sera. The objective of the exercise was to replicate selected results from a published study, perform exploratory data analysis (EDA) and evaluate biomarker patterns associated with disease severity. Using R, the dataset was cleaned, reformatted and statistically summarized to reproduce descriptive tables and graphical outputs reported in the original manuscript. Supplementary figures were reconstructed using grouped comparisons and non-parametric statistical testing. Additionally, the influence of extreme values was assessed through systematic outlier detection and sensitivity analysis. Finally, a heatmap of standardized biomarkers was generated to explore multivariate clustering patterns across clinical groups. The results confirm that severe COVID-19 cases are characterized by elevated inflammatory and metabolic markers and reduced lymphocyte counts. This exercise demonstrates reproducible research practices, critical evaluation of published findings and effective visualization of complex biomedical data.
 
-# Exercise 1
+# Introduction
 
-Download and load Supplementary Table 1 (“Additional Demographical and Baseline Characteristics of COVID-19 Patients and Control Groups”) from the supplementary materials of the publication.
+This exercise focuses on the reproducible analysis of proteomic and metabolomic data from COVID-19 patient sera. The dataset, derived from a published study [**Proteomic and Metabolomic Characterization of COVID-19 Patient Sera**](https://www.sciencedirect.com/science/article/pii/S0092867420306279), includes healthy individuals, non-COVID-19 patients and COVID-19 patients classified by disease severity. The aim was to replicate selected results from the original manuscript and explore biomarker patterns associated with disease progression.
+The analysis was conducted in R and included data cleaning, variable recoding and exploratory data analysis to understand distributions and group differences. Published summary tables and supplementary figures were reconstructed using descriptive statistics and non-parametric group comparisons. The impact of extreme values was assessed through outlier detection and a standardized heatmap was generated to explore multivariate biomarker patterns.
 
-## Exercise 1.1
+Overall, this exercise emphasizes reproducibility, statistical interpretation, and effective visualization of biomedical data.
 
-Reproduce Table 1 from the manuscript using the supplementary data. Match the reported summary statistics as closely as possible.
+# Exercise 1 – Reproducing table 1
 
-Briefly discuss any discrepancies between your results and the published table, and provide possible explanations.
+For this part, it is essential to download and load Supplementary Table 1 (“Additional Demographical and Baseline Characteristics of COVID-19 Patients and Control Groups”) from the supplementary materials of the publication.
+
+## Data cleaning
 
 ```{r}
 # -----------------------------
@@ -49,11 +64,11 @@ library(table1)
 library(janitor)
 library(htmltools)
 
-# 1) Read data
+# Read data
 df <- read_excel("../1-s2.0-S0092867420306279-mmc1.xlsx", sheet = 2)
 df <- clean_names(df)
 
-# 2) Build the main Table-1 group column for ALL rows first (critical)
+# Build the main Table-1 group column for all rows first 
 df <- df %>%
   mutate(
     group = case_when(
@@ -66,10 +81,10 @@ df <- df %>%
   ) %>%
   filter(!is.na(group))  # removes any unexpected codes
 
-# 3) Clean variables used in Table 1
+# Clean variables used in table 1
 df <- df %>%
   mutate(
-    # sex coding (you confirmed: 1=Male, 0=Female)
+    # sex coding (1=Male, 0=Female)
     sex = case_when(
       sex_g == 1 ~ "Male",
       sex_g == 0 ~ "Female",
@@ -79,7 +94,7 @@ df <- df %>%
     # numeric age
     age = parse_number(as.character(age_year)),
 
-    # numeric BMI (IMPORTANT: make it numeric, not character)
+    # numeric BMI ( make it numeric, not character)
     bmi = na_if(as.character(bmi_h), "/") %>%
       str_replace_all(",", ".") %>%
       str_replace_all("[^0-9.\\-]", "") %>%
@@ -99,12 +114,12 @@ df <- df %>%
     admission_to_severe = as.numeric(prog_date - admission_date)
   )
 
-# 4) Add COVID-19 Total rows (duplicate Non-severe + Severe and relabel)
+# Add COVID-19 Total rows (duplicate Non-severe + Severe and relabel)
 df_total <- df %>%
   filter(group %in% c("Non-severe", "Severe")) %>%
   mutate(group = "COVID-19 Total")
 
-# 5) Final dataset with 5 columns for Table 1
+# Final dataset with 5 columns for Table 1
 df5 <- bind_rows(df, df_total)
 
 df5$group <- factor(
@@ -112,10 +127,10 @@ df5$group <- factor(
   levels = c("Healthy Control","Non-COVID-19","COVID-19 Total","Non-severe","Severe")
 )
 
-# sanity check of Ns (should be 28, 25, 65, 37, 28 if matching paper)
+# sanity check of Ns 
 print(df5 %>% count(group))
 
-# 6) Formatting functions
+# Formatting functions
 my.render.cont <- function(x) {
   x <- x[!is.na(x)]
   if (length(x) == 0) return("")
@@ -128,7 +143,12 @@ my.render.cont <- function(x) {
 }
 my.render.cat <- function(x) render.categorical.default(x)
 
-# 7) Produce Table 1 and save as HTML
+```
+
+## Table construction
+
+```{r}
+# Produce Table 1 and save as HTML
 t1 <- table1(
   ~ sex + age + bmi + onset_to_admission + admission_to_severe | group,
   data = df5,
@@ -142,11 +162,11 @@ t1
 
 htmltools::save_html(t1, "table1.html")
 
-
-
 ```
 
-Discrepancies between the reproduced table and the published Table 1:
+## Comparison with published results
+
+Discrepancies between the reproduced table and the published table 1:
 
 - Small differences are observed in some summary statistics, for instance the mean or median and IQR for age, BMI and time-related variables. These differences are likely due to rounding conventions, differences in handling missing values or slightly different inclusion criteria applied by the authors, like excluding specific observations or use of pre-cleaned datasets.
 - Furthermore, larger discrepancies are observed in the severe COVID-19 subgroup, especially for age, BMI and time-related variables, showing lower values than those reported in the published table. One possible explanation is that the supplementary dataset includes all recorded severe cases, whereas the published analysis may have excluded specific observations, like patients with incomplete records or implausible dates. 
@@ -155,13 +175,10 @@ Discrepancies between the reproduced table and the published Table 1:
 
 All in all, the reproduced table matches the published table 1 as closely as possible, given the available date. The remaining discrepancies are minor and can be reasonably explained by differences in data preprocessing, rounding, missing-data handling and incomplete variable availability in the supplementary dataset. 
 
-## Exercise 1.2
 
-Perform an exploratory data analysis (EDA) of the dataset. At a minimum, include:
+# Exercise 2 – Supplementary figure 1
 
--   Descriptive statistics for key variables\
--   Appropriate visualizations (e.g. distributions, group comparisons)\
--   A brief written summary of notable patterns, anomalies, or data quality issues
+## Figure reproduction
 
 ```{r}
 
@@ -173,8 +190,7 @@ summary(df_new_variables)
 library(ggplot2)
 library(dplyr)
 
-
-# Sex bar plot --------- 
+# Sex bar plot
 
 sex_bar_plot <- ggplot(df5, aes(x=sex, fill = sex)) + geom_bar() + labs(
     title = "Male vs Female",
@@ -183,7 +199,7 @@ sex_bar_plot <- ggplot(df5, aes(x=sex, fill = sex)) + geom_bar() + labs(
   )
 
 sex_bar_plot
-# Age histogram ---------
+# Age histogram 
 age_histogram <- ggplot(df5, aes(x = age)) +
   geom_histogram(binwidth = 5) +
   labs(
@@ -194,7 +210,7 @@ age_histogram <- ggplot(df5, aes(x = age)) +
 
 age_histogram
 
-# Bmi histogram --------
+# Bmi histogram 
 bmi_histogram <- ggplot(df5, aes(x = bmi)) +
   geom_histogram() +
   labs(
@@ -205,7 +221,7 @@ bmi_histogram <- ggplot(df5, aes(x = bmi)) +
 
 bmi_histogram
 
-# Onset to admission --------
+# Onset to admission 
 onset_to_admission_histogram <- ggplot(df5, aes(x = onset_to_admission)) +
   geom_histogram() +
   labs(
@@ -216,7 +232,7 @@ onset_to_admission_histogram <- ggplot(df5, aes(x = onset_to_admission)) +
 
 onset_to_admission_histogram
 
-# Admission_to_severe --------
+# Admission_to_severe 
 admission_to_severe_histogram <- ggplot(df5, aes(x = admission_to_severe)) +
   geom_histogram() +
   labs(
@@ -227,7 +243,8 @@ admission_to_severe_histogram <- ggplot(df5, aes(x = admission_to_severe)) +
 
 admission_to_severe_histogram 
 
-#Correlation plot ------
+
+#Correlation plot
 # install.packages("corrplot")
 library(corrplot)
 #Calculate correlation matrix for numeric variables
@@ -248,11 +265,11 @@ corrplot(cor_matrix,
          tl.cex = 0.7,        # Shrinks the text labels (variable names)
          cl.cex = 0.7)        # Shrinks the color legend scale on the right
 
-# Group comparisons -------- 
+# GROUP COMPARISONS
 
 #group is the COVID status!
 
-#Sex by group -----
+#Sex by group 
 sex_by_group <- ggplot(df5, aes(x = group, fill = sex)) +
   geom_bar(position = "fill") +
   labs(
@@ -263,7 +280,7 @@ sex_by_group <- ggplot(df5, aes(x = group, fill = sex)) +
 
 sex_by_group 
 
-#Age by group -----
+#Age by group 
 age_by_group <- ggplot(df5, aes(x = group, y = age)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(width = 0.2, alpha = 0.5) +
@@ -276,7 +293,7 @@ age_by_group <- ggplot(df5, aes(x = group, y = age)) +
 
 age_by_group
 
-#BMI by group -----
+#BMI by group 
 bmi_by_group <- ggplot(df5, aes(x = group, y = bmi)) +
   geom_boxplot(outlier.shape = NA) +
   geom_jitter(width = 0.2, alpha = 0.5) +
@@ -310,175 +327,13 @@ ggplot(covid_df, aes(x = group, y = onset_to_admission, fill = group)) +
   theme(legend.position = "none")
 
 
-
 ```
 
-Exploratory data analysis was performed to describe the demographic and clinical characteristics of the study population. Sex, age and BMI distributions were first explored using descriptive statistics and graphical representations. Age and BMI showed reasonable ranges without evident implausible values. A correlation analysis was conducted on clinical laboratory markers to identify redundant variables and underlying biological patterns. This analysis revealed a near-perfect positive correlation between total and direct bilirubin (r=0.98), suggesting significant data redundancy. Furthermore, moderate-to-strong positive correlations were observed between liver enzymes ALT and AST (r=0.65), while systemic inflammation (measured by CRP) showed a positive association with AST (r=0.56) and a negative association with lymphocyte counts (r=−0.30), consistent with typical COVID-19 inflammatory signatures.
+## Outlier detection
 
-Some clinical time variables, such as time from symptom onset to hospital admission and time from admission to severe disease, were only defined for subsets of COVID-19 patients, reflecting the study design rather than random missingness. Group comparisons suggested differences in age distributions across COVID-19 severity groups, while BMI appeared broadly similar between groups. Sex distribution varied across clinical groups, with a higher proportion of males observed among COVID-19 patients. Time from symptom onset to admission was explored only among COVID-19 patients and appeared to differ between non-severe and severe cases.
-
-Overall, no major data quality issues were identified, though the CRP variable required type conversion to numeric for analysis, and the dataset was considered suitable for further analysis.
-
-# Exercise 2
-
-## Exercise 2.1
-
-Reproduce Supplementary Figure 1 using the data without modifying or removing any observations. Use the same variables and groupings as in the original figure.
+Seeing the plot above, we can observe that there are many dots high above the rest of the group. To deal with them, we can: Remove, Transform (log the data pulls extreme outliers closer to the mean, making the distribution more normal), or use robust statistics ( use median and IQR instead of mean and SD. By using the median, this is more robust because it is not pulled away by a single extreme value)
 
 ```{r}
-library(ggplot2)
-library(tidyr)
-library(dplyr)
-library(readxl)
-library(ggpubr)
-library(readr)
-library(janitor)
-
-
-# Pivot data to "Long" format so all variables can be plotted at once
-#Pivot means changing the shape (layout) of a dataset, wuthout changing the values. Only reorganizewhere the values sit in the table. 
-
-df <- read_excel("../1-s2.0-S0092867420306279-mmc1.xlsx", sheet = 2)
-df <- clean_names(df) #to have clean_names available, use library(janitor)!!
-
-df_new_variables <- df %>%
-  mutate(
-    group = case_when(
-      group_d %in% c(0, 1) ~ "Non-COVID-19",
-      group_d == 2 ~ "Non-severe",
-      group_d == 3 ~ "Severe",
-      TRUE ~ NA_character_
-    ),
-    group = factor(group, levels = c("Non-COVID-19", "Non-severe", "Severe"))
-  )
-
-# Variables (columns) to plot (AND order to match the original figure)
-marker_order <- c(
-  "wbc_count_109_l",
-  "lymphocyte_count_109_l",
-  "monocyte_count_109_l",
-  "platelet_count_109_l",
-  "crp_i_mg_l",
-  "alt_j_u_l",
-  "ast_k_u_l",
-  "ggt_l_u_l",
-  "tbil_m_mmol_l",
-  "dbil_n_mmol_l",
-  "creatinine_mmol_l",
-  "glucose_mmol_l"
-)
-
-vars <- marker_order
-
-# Nice facet labels 
-lab <- c(
-  wbc_count_109_l = "White blood cell (WBC)",
-  lymphocyte_count_109_l = "Lymphocyte",
-  monocyte_count_109_l = "Monocyte",
-  platelet_count_109_l = "Platelet",
-  crp_i_mg_l = "C-reactive protein (CRP)",
-  alt_j_u_l = "Alanine aminotransferase (ALT)",
-  ast_k_u_l = "Aspartate aminotransferase (AST)",
-  ggt_l_u_l = "Glutamyltransferase (GGT)",
-  tbil_m_mmol_l = "Total bilirubin (TBIL)",
-  dbil_n_mmol_l = "Direct bilirubin (DBIL)",
-  creatinine_mmol_l = "Creatinine",
-  glucose_mmol_l = "Glucose"
-)
-
-#Some of the vars contain NA, and we cannot plot that, so as the exercise say that we cannot remove anything, convert NA into values. 
-df_fix <- df_new_variables %>%
-  mutate(across(all_of(vars), ~ readr::parse_number(as.character(.))))
-  #mutate modifies existing columns or create new ones, and apply this trans formation to all 12 markers. 
-  # (.) means the current colunm being processed, as.character() forces the column to be treated as text. readr::parse_number extracts the numeric part of a string. 
-
-dlong <- df_fix %>%
-    select(group, all_of(vars)) %>% #this keeps only the group and the 12 clinical variables listed in vars. 
-  pivot_longer( #the pivot_longer() needs all values to be same type (numeric)
-    cols = all_of(vars), #stacks all 12 markers columns into one column
-    names_to = "Marker", #stores their names in Marker
-    values_to = "Value" #stores the measurements in Value
-    ) %>%
-  mutate(
-    Marker = factor(Marker, levels = marker_order, labels = lab[marker_order])
-  ) 
-#levels= orders the markers the way I want, and without it, they would be alphabetically ordered. 
-#labels = lab [marker_order] replaces ugly variable names with human-readable titles. 
-
-#The code above transforms my dataset into a format where, each row = one measurement, each group = patient group, each marker = clinical value (like wbc, crp...) and each value = numeric value of that variable
-
-# Pairwise comparisons (stars) -
-comps <- list( #each element of the listis a pair of group names, so compare both groups. 
-  c("Non-COVID-19", "Non-severe"), 
-  c("Non-severe", "Severe"),
-  c("Non-COVID-19", "Severe")
-)
-
-# One plot, 12 panels (ordered like the article)
-p <- ggplot(dlong, aes(x = group, y = Value, color = group)) +
-  # Add the bars representing the Mean
-  stat_summary(
-    fun = "mean", 
-    geom = "bar", 
-    fill = "white", 
-    linewidth = 1, 
-    width = 0.7
-  ) +
-  # Add the Error Bars (Standard Error)
-  stat_summary(
-    fun.data = "mean_se", 
-    geom = "errorbar", 
-    width = 0.2, 
-    color = "black"
-  ) +
-  # Add the individual jittered points
-  geom_jitter(width = 0.2, alpha = 0.5, size = 0.8) +
-  # Create the multi-panel grid
-  facet_wrap(~Marker, ncol = 3, scales = "free_y") +
-  # Statistical comparisons (stays the same)
-  stat_compare_means(
-    comparisons = comps, 
-    method = "wilcox.test",
-    label = "p.signif", 
-    hide.ns = TRUE, 
-    size = 3,
-    label.y.npc = "top"
-  ) +
-  # Manual colors for the group outlines
-  scale_color_manual(
-    values = c(
-      "Non-COVID-19" = "#1f77b4", 
-      "Non-severe"   = "#ff7f0e", 
-      "Severe"       = "#d62728"
-    )
-  ) +
-  # Styling and Cleanup
-  theme_classic() +
-  theme(
-    axis.title = element_blank(),
-    axis.text.x = element_blank(),
-    axis.ticks.x = element_blank(),
-    legend.title = element_blank(),
-    strip.background = element_blank(),
-    strip.text = element_text(face = "bold"),
-    legend.position = "top",
-  )
-
-# Save the plot
-ggsave("SuppFig1_2_1.png", p, width = 14, height = 12, dpi = 300)
-
-p
-```
-
-## Exercise 2.2
-
-Identify and handle outliers using an appropriate and well-justified method (e.g. removal, transformation, or robust statistics).
-
-Reproduce Supplementary Figure 1 after outlier handling and discuss how and why the results change.
-
-```{r}
-
-#Seeing the plot above, we can observe that there are many dots high above the rest of the group. To deal with them, we can: Remove, Transform (log the data pulls extreme outliers closer to the mean, making the distribution more normal), or use robust statistics ( use median and IQR instead of mean and SD. By using the median, this is more robust because it is not pulled away by a single extreme value)
 
 # REMOVAL ---------------
 #install.packages("ggstatsplot")
@@ -495,7 +350,7 @@ library(ggpubr)
 mydata<- read_excel("../1-s2.0-S0092867420306279-mmc1.xlsx", sheet = 2)
 mydata <- clean_names(mydata)
 
-# Define the variables in the EXACT order you want them to appear in the grid
+# Define the variables in the EXACT order to appear in the grid
 
 ordered_vars <- c(
   "wbc_count_109_l", "lymphocyte_count_109_l", "monocyte_count_109_l", 
@@ -549,6 +404,11 @@ my_comparisons <- list(
   c("Non-severe", "Severe"), 
   c("Non-COVID-19", "Severe") 
 )
+```
+
+## Cleaned figure
+
+```{r}
 # Final Plotting
 s <- ggplot(mydata_ordered, aes(x = group, y = cleaned_value, color = group)) +
   stat_summary(fun = "mean", geom = "bar", fill = "white", linewidth = 1, width = 0.7) +
@@ -591,10 +451,12 @@ outlier_summary <- mydata_ordered %>%
   ) %>%
   filter(outliers_removed > 0) # Only show markers that actually had outliers
 
-view(outlier_summary)
-
+print(outlier_summary)
 ```
-The primary difference between the original Supplementary Figure 1 and the reproduced ordered and cleaned figure is the significant improvemnt in visual clarity and normalization of the y-axis scales. 
+
+## Interpretation
+
+The primary difference between the original Supplementary Figure 1 and the reproduced ordered and cleaned figure is the significant improvement in visual clarity and normalization of the y-axis scales. 
 In the original figure, extreme outliers (such as an ALT value of around 810 or an AST value near 800) forced the y-axis to extend to very high limits. This "squashed" the bars representing the means, making it difficult to visually distinguish differences between groups. In the cleaned figure, removing these extreme values, allowed the y-axis to make a "zoom in", making the biological trends and differences between the non-COVID19, non-severe and severe groups much more apparent. 
 In the original figure, the dots looked more concentrated because the scale was so large. By removing the extreme points, the plot expands the middle range, and that's the reason why the dots now look more spread out. 
 
@@ -612,23 +474,25 @@ The fact that the original paper kept these extreme values (original figure), su
 
 The original paper likely retained extreme values to showcase the full clinical spectrum of COVID-19, including instances of extreme organ failure. However, this reproduction demonstrates that while standard IQR cleaning focuses on the typical patient case, it also makes the remaining variance appear more pronounced when the axis scales freely. Ultimately, cleaning the data did not just remove "dots", it fundamentally changed the resolution of the clinical phenotypes.
 
+# Exercise 3 – Heatmap analysis
 
-# Exercise 3
+This are some considerations or comments regrding the following code that helped me understand better the exercise:
 
-Create a heatmap of the biomarker data. Include group and gender as annotation variables.
+- As biomarkers have very different units, units must be scaled so all of them are compared on a relative basis. This is done in the pheatmap function to do the heatmap
+- By grouping by group, allows to see if "severe" patients have a distinct color pattern compared to the "healthy" controls
+- Grouping by gender, helps identify if biomarker patterns are influenced by biological sex. 
+
+
+## Data standardization
 
 ```{r}
-
-#As biomarkers have very different units, units must be scaled so all of them are compared ona relative basis. This is done in the pheatmap function to do the heatmap
-#by grouping by group, allows to see if "severe" patients have a distinct color pattern compared to the "healthy" controls
-#grouping by gender, helps identify if biomarker patterns are influenced by biological sex. 
 
 #install.packages("pheatmap")
 library(pheatmap)
 library(tidyverse)
 library(ggplot2)
 
-# 1. Take cleaned "mydata_ordered" and pivot it back to wide format
+# Take cleaned "mydata_ordered" and pivot it back to wide format
 mydata_long <- mydata %>%
   select(patient_id_a, group = group_d, sex = sex_g, all_of(ordered_vars)) %>%
   mutate(across(all_of(ordered_vars), ~as.numeric(as.character(.)))) %>%
@@ -659,25 +523,25 @@ heatmap_ready <- heatmap_ready %>%
     )
   )
 
-# 2. Prepare Annotation
+# Prepare Annotation
 annotation_col <- heatmap_ready %>%
   select(group, sex) %>%
   as.data.frame()
 
-# 3. Create the Matrix
+# Create the Matrix
 matrix_to_plot <- heatmap_ready %>%
   select(all_of(ordered_vars)) %>%
   as.matrix()
 
-# 4. Plot
-## 1. Convert everything to standard data frames immediately
+# Plot
+## Convert everything to standard data frames immediately
 matrix_df <- as.data.frame(matrix_to_plot)
 # Make sure group and sex are in my annotation data
 # annotation_col <- heatmap_ready[rows_to_keep, ] %>% 
 #   select(group, sex) %>% 
 #   as.data.frame()
 
-## 2. Handle the NAs (Outliers)
+## Handle the NAs (Outliers)
 # Since I have 51 patients in my matrix, we need to make sure 
 # the annotation table also has exactly those 51 patients.
 # rows_to_keep <- complete.cases(matrix_df)
@@ -685,16 +549,20 @@ matrix_df <- as.data.frame(matrix_to_plot)
 # matrix_to_plot_clean <- matrix_df[rows_to_keep, ]
 # annotation_col_clean <- annotation_col[rows_to_keep, , drop = FALSE]
 
-## 3. Assign matching dummy names
+## Assign matching dummy names
 patient_names <- paste0("Patient_", 1:nrow(matrix_to_plot))
 rownames(matrix_to_plot) <- patient_names
 rownames(annotation_col) <- patient_names
 
-## 4. Check the counts
+## Check the counts
 print(paste("Matrix rows (patients):", nrow(matrix_to_plot)))
 print(paste("Annotation rows:", nrow(annotation_col)))
+```
 
-## 5. Plot
+## Heatmap construction
+
+```{r}
+## Plot
 h <- pheatmap(
   t(matrix_to_plot), # Biomarkers in rows
   scale = "row",     # Z-score scaling
@@ -708,9 +576,12 @@ h
 ggsave("Heatmap.png", h, width = 14, height = 12, dpi = 300)
 ```
 
-# Conclusion
+## Interpretation
 
-Write a concise conclusion (1 paragraphs) summarizing the main differences observed across the three patient groups based on the twelve clinical parameters. Support your statements with evidence from your analyses. 
+The heatmap presents standardized clinical biomarker values across individuals, grouped by disease status and annotated by biological sex. Each row represents a biomarker, while each column corresponds to a patient. Values were standardized (Z-scores), allowing comparison across variables with different measurement units. Warmer colors (red/orange) indicate relatively higher values, whereas cooler colors (blue) indicate lower values compared to the overall mean. The hierarchical clustering of columns reveals a tendency for patients to group according to disease severity rather than sex. Individuals classified as severe COVID-19 cluster together and display a consistent pattern of elevated inflammatory and metabolic markers such as CRP, AST and ALT. In contrast, non-severe and non-COVID-19 patients show relatively lower or more balanced biomarker profiles.
+This suggests that disease severity is associated with a distinct biochemical signature.
+
+# Conclusions
 
 Clinical characterization across the three patient groups reveals that severe COVID-19 is defined by systemic inflammatory and metabolic dysregulation. Glucose and CRP are the most significant differentiators, with the Severe group exhibiting markedly higher median levels, elevated glucose indicates a profound physiological stress response, while CRP serves as a critical marker associated with disease progression. Hierarchical clustering in the biomarker heatmap shows that these inflammatory signatures (specifically the elevated CRP, ALT, and AST cluster) emerge independently of sex, as both male and female patients are distributed throughout the severe and non-severe clusters. Immunologically, a decreased lymphocyte count is distinguished between  the severe cohort from non-severe and non-COVID-19 patients, whereas WBC, monocyte and platelet counts remain relatively stable across groups. While liver stress markers (ALT and AST) show slight upward trends in severe cases, suggesting potential multi-organ involvement. Other parameters such as TBIL and DBIL do not show significant variation, indicating that the primary clinical signature of severity in this cohort is driven by acute inflammation and metabolic shifts rather than broad hepatic or biliary failure and this progression appears to follow a consistent pattern across both biological sexes in this dataset. 
 
