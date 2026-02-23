@@ -1,6 +1,6 @@
 ---
-title: "DMI - Hands on 1: Proteomic and Metabolomic Characterization of COVID-19 Patient Sera"
-subtitle: "Reproducible Statistical Analysis and Visualization"
+title: "DMI - Hands on 1: Proteomic and metabolomic sharacterization of COVID-19 patient sera"
+subtitle: "Reproducible statistical snalysis and sisualization"
 author: ' Maria Pau Pijoan Manresa (mariapau.pijoan01@estudiant.upf.edu)'
 date: 'Last update: `r format(Sys.time(), "%d %B, %Y")`'
 output:
